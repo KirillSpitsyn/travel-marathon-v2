@@ -306,13 +306,13 @@ const MarathonMap = () => {
         </div>
 
         {/* Loading Spinner */}
-        {isLoading && (
+        {/* {isLoading && (
           <div className="position-absolute top-50 start-50 translate-middle bg-white p-3 rounded shadow">
             <div className="spinner-border text-primary" role="status">
               <span className="visually-hidden">Загрузка...</span>
             </div>
           </div>
-        )}
+        )} */}
 
         {/* Map Container */}
         <div
