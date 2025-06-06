@@ -111,14 +111,14 @@ const MarathonMap = () => {
         geometry: new Point(fromLonLat(marathon.coordinates)),
       });
 
-      // Different styling for upcoming marathons
+      // SWITCHED COLORS: Red for upcoming (nearest 5), Green for others
       feature.setStyle(
         new Style({
           image: new Icon({
             src: 'https://icons.iconarchive.com/icons/paomedia/small-n-flat/1024/map-marker-icon.png',
             scale: 0.04,
-            // Use green for upcoming marathons, red for others
-            color: isUpcoming ? '#00C853' : undefined
+            // Use RED for upcoming marathons (5 nearest), GREEN for others
+            color: isUpcoming ? '#FF0000' : '#00C853'
           }),
         })
       );
@@ -305,15 +305,6 @@ const MarathonMap = () => {
           </div>
         </div>
 
-        {/* Loading Spinner */}
-        {/* {isLoading && (
-          <div className="position-absolute top-50 start-50 translate-middle bg-white p-3 rounded shadow">
-            <div className="spinner-border text-primary" role="status">
-              <span className="visually-hidden">Загрузка...</span>
-            </div>
-          </div>
-        )} */}
-
         {/* Map Container */}
         <div
           ref={mapRef}
@@ -326,6 +317,7 @@ const MarathonMap = () => {
             boxShadow: '0px 4px 10px rgba(0,0,0,0.2)',
           }}
         />
+        <br/>
 
         {/* Popup Overlay */}
         <div
