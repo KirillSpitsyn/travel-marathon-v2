@@ -78,7 +78,9 @@ const icons: Record<string, string> = {
   hotel: 'https://cdn-icons-png.flaticon.com/512/1668/1668966.png',
   restaurant: 'https://img.icons8.com/color/48/000000/restaurant.png',
   attraction: 'https://icons.iconarchive.com/icons/paomedia/small-n-flat/1024/map-marker-icon.png',
-};
+  start: 'https://cdn-icons-png.flaticon.com/512/1945/1945064.png', 
+  finish: 'https://cdn-icons-png.flaticon.com/512/783/783470.png' 
+}
 
 // Import marathon details data from an external file
 import { marathonDetails } from '@/app/data/marathons';
@@ -90,11 +92,15 @@ const createMarker = (
   name: string,
   address: string,
   distance: string | null,
-  type: 'hotel' | 'restaurant' | 'attraction',
+  type: 'hotel' | 'restaurant' | 'attraction' | 'start' | 'finish',
   website: string,
   vectorSource: VectorSource
 ): Feature => {
-  const iconScale = type === 'hotel' ? 0.06 : type === 'attraction' ? 0.04 : 0.7;
+  const iconScale = type === 'hotel' ? 0.06 : 
+                   type === 'attraction' ? 0.04 : 
+                   type === 'start' || type === 'finish' ? 0.08 : 
+                   0.7;
+  
   const feature = new Feature({
     geometry: new Point(fromLonLat(coords)),
     name: name,
@@ -186,6 +192,44 @@ export default function MarathonDetailPage({ params }: { params: { token: string
     const markerLayer = new VectorLayer({ source: vectorSource });
     smallMapInstance.current.addLayer(markerLayer);
     
+    // Add START and FINISH markers from route array
+    if (marathon.route && marathon.route.length >= 2) {
+      const startCoords = marathon.route[0];
+      let finishCoords = marathon.route[marathon.route.length - 1];
+      
+      // Add START marker
+      createMarker(
+        startCoords,
+        'start-marker',
+        'Старт марафона',
+        'Место старта марафона',
+        null,
+        'start',
+        '',
+        vectorSource
+      );
+      
+      // Check if start and finish are at the same location
+      const sameLocation = startCoords[0] === finishCoords[0] && startCoords[1] === finishCoords[1];
+      
+      // If same location, add a small offset to finish marker so both are visible
+      if (sameLocation) {
+        finishCoords = [finishCoords[0] + 0.001, finishCoords[1] + 0.001];
+      }
+      
+      // Always add FINISH marker
+      createMarker(
+        finishCoords,
+        'finish-marker',
+        'Финиш марафона',
+        'Место финиша марафона',
+        null,
+        'finish',
+        '',
+        vectorSource
+      );
+    }
+    
     // Add accommodation markers
     marathon.accommodations.forEach((hotel, index) => {
       if (hotel.coordinates) {
@@ -247,22 +291,37 @@ export default function MarathonDetailPage({ params }: { params: { token: string
         const props = feature.getProperties();
         
         smallMapOverlayRef.current.setPosition(event.coordinate);
-        smallMapPopupRef.current.innerHTML = `
-          <div class="popup-content" style="cursor: pointer; position: relative; padding: 5px;">
-            <button id="small-close-popup" style="position: absolute; top: 0; right: 0; background: none; border: none; font-size: 16px; cursor: pointer;">×</button>
-            <h6 style="margin-bottom: 5px;">${props.name}</h6>
-            <p style="font-size: 12px; margin-bottom: 5px;">
-              📍 ${props.address}<br>
-              ${props.distance ? `📏 Расстояние: ${props.distance}` : ''}
-            </p>
-            <div class="text-center">
-              <button id="small-view-website" class="btn btn-sm btn-primary" style="font-size: 12px; padding: 2px 8px;">
-                Перейти на сайт
-              </button>
-            </div>
-          </div>
-        `;
         
+        let popupContent = '';
+        if (props.type === 'start' || props.type === 'finish') {
+          popupContent = `
+            <div class="popup-content" style="cursor: default; position: relative; padding: 5px;">
+              <button id="small-close-popup" style="position: absolute; top: 0; right: 0; background: none; border: none; font-size: 16px; cursor: pointer;">×</button>
+              <h6 style="margin-bottom: 5px;">${props.name}</h6>
+              <p style="font-size: 12px; margin-bottom: 5px;">
+                📍 ${props.address}
+              </p>
+            </div>
+          `;
+        } else {
+          popupContent = `
+            <div class="popup-content" style="cursor: pointer; position: relative; padding: 5px;">
+              <button id="small-close-popup" style="position: absolute; top: 0; right: 0; background: none; border: none; font-size: 16px; cursor: pointer;">×</button>
+              <h6 style="margin-bottom: 5px;">${props.name}</h6>
+              <p style="font-size: 12px; margin-bottom: 5px;">
+                📍 ${props.address}<br>
+                ${props.distance ? `📏 Расстояние: ${props.distance}` : ''}
+              </p>
+              <div class="text-center">
+                <button id="small-view-website" class="btn btn-sm btn-primary" style="font-size: 12px; padding: 2px 8px;">
+                  Перейти на сайт
+                </button>
+              </div>
+            </div>
+          `;
+        }
+        
+        smallMapPopupRef.current.innerHTML = popupContent;
         smallMapPopupRef.current.style.display = 'block';
         
         // Add click listeners
@@ -282,10 +341,10 @@ export default function MarathonDetailPage({ params }: { params: { token: string
           });
         }
         
-        // Make entire popup clickable
-        const popupContent = smallMapPopupRef.current.querySelector('.popup-content');
-        if (popupContent && props.website) {
-          popupContent.addEventListener('click', (e) => {
+        // Make entire popup clickable for non-start/finish markers
+        const popupContentEl = smallMapPopupRef.current.querySelector('.popup-content');
+        if (popupContentEl && props.website && props.type !== 'start' && props.type !== 'finish') {
+          popupContentEl.addEventListener('click', (e) => {
             const target = e.target as HTMLElement;
             // Avoid opening website when clicking close button
             if (target.id !== 'small-close-popup') {
@@ -388,6 +447,44 @@ export default function MarathonDetailPage({ params }: { params: { token: string
     
     largeMapInstance.current.addOverlay(largeMapOverlayRef.current);
     
+    // Add START and FINISH markers from route array
+    if (marathon.route && marathon.route.length >= 2) {
+      const startCoords = marathon.route[0];
+      let finishCoords = marathon.route[marathon.route.length - 1];
+      
+      // Add START marker
+      createMarker(
+        startCoords,
+        'start-marker',
+        'Старт марафона',
+        'Место старта марафона',
+        null,
+        'start',
+        '',
+        vectorSource
+      );
+      
+      // Check if start and finish are at the same location
+      const sameLocation = startCoords[0] === finishCoords[0] && startCoords[1] === finishCoords[1];
+      
+      // If same location, add a small offset to finish marker so both are visible
+      if (sameLocation) {
+        finishCoords = [finishCoords[0] + 0.001, finishCoords[1] + 0.001];
+      }
+      
+      // Always add FINISH marker
+      createMarker(
+        finishCoords,
+        'finish-marker',
+        'Финиш марафона',
+        'Место финиша марафона',
+        null,
+        'finish',
+        '',
+        vectorSource
+      );
+    }
+    
     // Add accommodation markers
     marathon.accommodations.forEach((hotel, index) => {
       if (hotel.coordinates) {
@@ -450,21 +547,34 @@ export default function MarathonDetailPage({ params }: { params: { token: string
         setActiveMapFeature(props);
         
         largeMapOverlayRef.current.setPosition(event.coordinate);
-        largeMapPopupRef.current.innerHTML = `
-          <div class="popup-content" style="cursor: pointer; position: relative; padding: 10px;">
-            <button id="close-popup" style="position: absolute; top: 5px; right: 5px; background: none; border: none; font-size: 20px; cursor: pointer;">×</button>
-            <h5>${props.name}</h5>
-            <p>
-              📍 ${props.address}<br>
-              ${props.distance ? `📏 Расстояние до старта: ${props.distance}` : ''}
-            </p>
-            <div class="d-flex justify-content-between">
-              <button id="scroll-to-section" class="btn btn-sm btn-secondary">Найти на странице</button>
-              <button id="view-website" class="btn btn-sm btn-primary">Перейти на сайт</button>
-            </div>
-          </div>
-        `;
         
+        let popupContent = '';
+        if (props.type === 'start' || props.type === 'finish') {
+          popupContent = `
+            <div class="popup-content" style="cursor: default; position: relative; padding: 10px;">
+              <button id="close-popup" style="position: absolute; top: 5px; right: 5px; background: none; border: none; font-size: 20px; cursor: pointer;">×</button>
+              <h5>${props.name}</h5>
+              <p>📍 ${props.address}</p>
+            </div>
+          `;
+        } else {
+          popupContent = `
+            <div class="popup-content" style="cursor: pointer; position: relative; padding: 10px;">
+              <button id="close-popup" style="position: absolute; top: 5px; right: 5px; background: none; border: none; font-size: 20px; cursor: pointer;">×</button>
+              <h5>${props.name}</h5>
+              <p>
+                📍 ${props.address}<br>
+                ${props.distance ? `📏 Расстояние до старта: ${props.distance}` : ''}
+              </p>
+              <div class="d-flex justify-content-between">
+                <button id="scroll-to-section" class="btn btn-sm btn-secondary">Найти на странице</button>
+                <button id="view-website" class="btn btn-sm btn-primary">Перейти на сайт</button>
+              </div>
+            </div>
+          `;
+        }
+        
+        largeMapPopupRef.current.innerHTML = popupContent;
         largeMapPopupRef.current.style.display = 'block';
         
         // Close button listener
@@ -488,7 +598,7 @@ export default function MarathonDetailPage({ params }: { params: { token: string
         
         // Scroll to section button listener
         const scrollButton = largeMapPopupRef.current.querySelector('#scroll-to-section');
-        if (scrollButton) {
+        if (scrollButton && props.type !== 'start' && props.type !== 'finish') {
           scrollButton.addEventListener('click', (e) => {
             e.stopPropagation();
             
@@ -511,10 +621,10 @@ export default function MarathonDetailPage({ params }: { params: { token: string
           });
         }
         
-        // Make entire popup clickable to open website
-        const popupContent = largeMapPopupRef.current.querySelector('.popup-content');
-        if (popupContent && props.website) {
-          popupContent.addEventListener('click', (e) => {
+        // Make entire popup clickable to open website for non-start/finish markers
+        const popupContentEl = largeMapPopupRef.current.querySelector('.popup-content');
+        if (popupContentEl && props.website && props.type !== 'start' && props.type !== 'finish') {
+          popupContentEl.addEventListener('click', (e) => {
             const target = e.target as HTMLElement;
             
             // Only open website if we're not clicking buttons
@@ -814,6 +924,12 @@ export default function MarathonDetailPage({ params }: { params: { token: string
         <Modal.Footer>
           <div className="d-flex justify-content-between w-100">
             <div>
+              <span className="me-3">
+                <img src={icons.start} alt="Start" style={{ width: '20px' }} /> Старт марафона
+              </span>
+              <span className="me-3">
+                <img src={icons.finish} alt="Finish" style={{ width: '20px' }} /> Финиш марафона
+              </span>
               <span className="me-3">
                 <img src={icons.hotel} alt="Hotel" style={{ width: '20px' }} /> Отели
               </span>
